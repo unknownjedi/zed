@@ -17,8 +17,8 @@ pub enum OpenAiModel {
 }
 
 impl OpenAiModel {
-    pub fn convert_enum(model_name: String) -> OpenAiModel {
-        match model_name.as_str() {
+    pub fn from_name(model_name: &str) -> OpenAiModel {
+        match model_name {
             "gpt-3.5-turbo-0613" => OpenAiModel::ThreePointFiveTurbo,
             "gpt-4-0613" => OpenAiModel::Four,
             "gpt-4-1106-preview" => OpenAiModel::FourTurbo,
@@ -31,7 +31,7 @@ impl OpenAiModel {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",
             OpenAiModel::Four => "gpt-4-0613",
             OpenAiModel::FourTurbo => "gpt-4-1106-preview",
-            OpenAiModel::Custom => "Custom model",
+            OpenAiModel::Custom => "Custom",
         }
     }
 
@@ -40,7 +40,7 @@ impl OpenAiModel {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo",
             OpenAiModel::Four => "gpt-4",
             OpenAiModel::FourTurbo => "gpt-4-turbo",
-            OpenAiModel::Custom => "Custom model",
+            OpenAiModel::Custom => "Custom",
         }
     }
 

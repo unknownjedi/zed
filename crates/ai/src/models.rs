@@ -19,10 +19,11 @@ pub trait LanguageModel {
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ModelEndpoint {
-    #[serde(rename = "OPENAI")]
+    #[serde(rename = "openai")]
     #[default]
-    OpenAI,
-    #[serde(rename = "AZURE")]
+    Openai,
+    #[serde(rename = "azure")]
     Azure,
 }

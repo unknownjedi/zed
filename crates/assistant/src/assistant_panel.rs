@@ -1458,7 +1458,7 @@ impl Conversation {
 
         let settings = AssistantSettings::get_global(cx);
         let model_name = settings.model_name.clone();
-        let model = OpenAiModel::convert_enum(model_name.clone());
+        let model = OpenAiModel::from_name(&model_name);
         let api_url = settings.endpoint_url.clone();
         let endpoint = settings.endpoint.clone();
         let api_version = settings.api_version.clone();
@@ -3680,7 +3680,7 @@ fn report_assistant_event(
     let telemetry = client.telemetry();
 
     let model_name = AssistantSettings::get_global(cx).model_name.clone();
-    let model = OpenAiModel::convert_enum(model_name);
+    let model = OpenAiModel::from_name(&model_name);
 
     telemetry.report_assistant_event(conversation_id, assistant_kind, model.full_name())
 }
