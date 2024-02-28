@@ -18,7 +18,7 @@ use util::ResultExt;
 use crate::{
     auth::{CredentialProvider, ProviderCredential},
     completion::{CompletionProvider, CompletionRequest},
-    models::LanguageModel,
+    models::{LanguageModel, ModelEndpoint},
 };
 
 use crate::providers::open_ai::{OpenAiLanguageModel, OPEN_AI_API_URL};
@@ -102,8 +102,35 @@ pub struct OpenAiResponseStreamEvent {
     pub usage: Option<OpenAiUsage>,
 }
 
+fn completion_url(
+    api_url: String,
+    model: String,
+    endpoint: ModelEndpoint,
+    api_version: String,
+) -> String {
+    match endpoint {
+        ModelEndpoint::Azure => {
+            format!(
+                "{}/openai/deployments/{}/chat/completions?api-version={}",
+                api_url, model, api_version
+            )
+        }
+        _ => format!("{}/chat/completions", api_url),
+    }
+}
+
+fn auth_header(endpoint: ModelEndpoint, api_key: String) -> (&'static str, String) {
+    match endpoint {
+        ModelEndpoint::Azure => ("Api-Key", api_key),
+        _ => ("Authorization", format!("Bearer {}", api_key)),
+    }
+}
+
 pub async fn stream_completion(
     api_url: String,
+    model: String,
+    endpoint: ModelEndpoint,
+    api_version: String,
     credential: ProviderCredential,
     executor: BackgroundExecutor,
     request: Box<dyn CompletionRequest>,
@@ -118,9 +145,10 @@ pub async fn stream_completion(
     let (tx, rx) = futures::channel::mpsc::unbounded::<Result<OpenAiResponseStreamEvent>>();
 
     let json_data = request.data()?;
-    let mut response = Request::post(format!("{api_url}/chat/completions"))
+    let (header_key, header_value) = auth_header(endpoint.clone(), api_key);
+    let mut response = Request::post(completion_url(api_url, model, endpoint, api_version))
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", api_key))
+        .header(header_key, header_value)
         .body(json_data)?
         .send_async()
         .await?;
@@ -198,12 +226,20 @@ pub async fn stream_completion(
 pub struct OpenAiCompletionProvider {
     api_url: String,
     model: OpenAiLanguageModel,
+    endpoint: ModelEndpoint,
+    api_version: String,
     credential: Arc<RwLock<ProviderCredential>>,
     executor: BackgroundExecutor,
 }
 
 impl OpenAiCompletionProvider {
-    pub async fn new(api_url: String, model_name: String, executor: BackgroundExecutor) -> Self {
+    pub async fn new(
+        api_url: String,
+        model_name: String,
+        endpoint: ModelEndpoint,
+        api_version: String,
+        executor: BackgroundExecutor,
+    ) -> Self {
         let model = executor
             .spawn(async move { OpenAiLanguageModel::load(&model_name) })
             .await;
@@ -211,6 +247,8 @@ impl OpenAiCompletionProvider {
         Self {
             api_url,
             model,
+            endpoint,
+            api_version,
             credential,
             executor,
         }
@@ -306,8 +344,16 @@ impl CompletionProvider for OpenAiCompletionProvider {
         // which is currently model based, due to the language model.
         // At some point in the future we should rectify this.
         let credential = self.credential.read().clone();
-        let api_url = self.api_url.clone();
-        let request = stream_completion(api_url, credential, self.executor.clone(), prompt);
+        let model = self.model.clone();
+        let request = stream_completion(
+            self.api_url.clone(),
+            model.name(),
+            self.endpoint.clone(),
+            self.api_version.clone(),
+            credential,
+            self.executor.clone(),
+            prompt,
+        );
         async move {
             let response = request.await?;
             let stream = response

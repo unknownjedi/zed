@@ -11,6 +11,7 @@ use ai::providers::open_ai::OPEN_AI_API_URL;
 use ai::{
     auth::ProviderCredential,
     completion::{CompletionProvider, CompletionRequest},
+    models::ModelEndpoint,
     providers::open_ai::{OpenAiCompletionProvider, OpenAiRequest, RequestMessage},
 };
 use anyhow::{anyhow, Result};
@@ -116,22 +117,27 @@ impl AssistantPanel {
         workspace: WeakView<Workspace>,
         cx: AsyncWindowContext,
     ) -> Task<Result<View<Self>>> {
+        log::debug!("Assistant settings: panel opened");
         cx.spawn(|mut cx| async move {
             let fs = workspace.update(&mut cx, |workspace, _| workspace.app_state().fs.clone())?;
             let saved_conversations = SavedConversationMetadata::list(fs.clone())
                 .await
                 .log_err()
                 .unwrap_or_default();
-            let (api_url, model_name) = cx.update(|cx| {
+            let (api_url, model_name, endpoint, api_version) = cx.update(|cx| {
                 let settings = AssistantSettings::get_global(cx);
                 (
-                    settings.openai_api_url.clone(),
-                    settings.default_open_ai_model.full_name().to_string(),
+                    settings.endpoint_url.clone(),
+                    settings.model_name.clone(),
+                    settings.endpoint.clone(),
+                    settings.api_version.clone(),
                 )
             })?;
             let completion_provider = OpenAiCompletionProvider::new(
                 api_url,
                 model_name,
+                endpoint,
+                api_version,
                 cx.background_executor().clone(),
             )
             .await;
@@ -690,10 +696,8 @@ impl AssistantPanel {
             Task::ready(Ok(Vec::new()))
         };
 
-        let mut model = AssistantSettings::get_global(cx)
-            .default_open_ai_model
-            .clone();
-        let model_name = model.full_name();
+        let model_name = AssistantSettings::get_global(cx).model_name.clone();
+        let model_str = model_name.clone();
 
         let prompt = cx.background_executor().spawn(async move {
             let snippets = snippets.await?;
@@ -705,7 +709,7 @@ impl AssistantPanel {
                 buffer,
                 range,
                 snippets,
-                model_name,
+                model_str.as_ref(),
                 project_name,
             )
         });
@@ -719,7 +723,6 @@ impl AssistantPanel {
                     .messages(cx)
                     .map(|message| message.to_open_ai_message(buffer)),
             );
-            model = conversation.model.clone();
         }
 
         cx.spawn(|_, mut cx| async move {
@@ -732,7 +735,7 @@ impl AssistantPanel {
             });
 
             let request = Box::new(OpenAiRequest {
-                model: model.full_name().into(),
+                model: model_name,
                 messages,
                 stream: true,
                 stop: vec!["|END|>".to_string()],
@@ -1417,7 +1420,10 @@ struct Conversation {
     completion_count: usize,
     pending_completions: Vec<PendingCompletion>,
     model: OpenAiModel,
+    model_name: Option<String>,
     api_url: Option<String>,
+    endpoint: Option<ModelEndpoint>,
+    api_version: Option<String>,
     token_count: Option<usize>,
     max_token_count: usize,
     pending_token_count: Task<Option<()>>,
@@ -1451,8 +1457,11 @@ impl Conversation {
         });
 
         let settings = AssistantSettings::get_global(cx);
-        let model = settings.default_open_ai_model.clone();
-        let api_url = settings.openai_api_url.clone();
+        let model_name = settings.model_name.clone();
+        let model = OpenAiModel::convert_enum(model_name.clone());
+        let api_url = settings.endpoint_url.clone();
+        let endpoint = settings.endpoint.clone();
+        let api_version = settings.api_version.clone();
 
         let mut this = Self {
             id: Some(Uuid::new_v4().to_string()),
@@ -1464,10 +1473,13 @@ impl Conversation {
             completion_count: Default::default(),
             pending_completions: Default::default(),
             token_count: None,
-            max_token_count: tiktoken_rs::model::get_context_size(&model.full_name()),
+            max_token_count: tiktoken_rs::model::get_context_size(model_name.as_str()),
             pending_token_count: Task::ready(None),
             api_url: Some(api_url),
             model: model.clone(),
+            model_name: Some(model_name),
+            endpoint: Some(endpoint),
+            api_version: Some(api_version),
             _subscriptions: vec![cx.subscribe(&buffer, Self::handle_buffer_event)],
             pending_save: Task::ready(Ok(())),
             path: None,
@@ -1512,7 +1524,10 @@ impl Conversation {
                 .map(|summary| summary.text.clone())
                 .unwrap_or_default(),
             model: self.model.clone(),
+            model_name: self.model_name.clone(),
             api_url: self.api_url.clone(),
+            endpoint: self.endpoint.clone().unwrap_or_default(),
+            api_version: self.api_version.clone(),
         }
     }
 
@@ -1527,13 +1542,18 @@ impl Conversation {
             None => Some(Uuid::new_v4().to_string()),
         };
         let model = saved_conversation.model;
+        let model_name = saved_conversation.model_name;
         let api_url = saved_conversation.api_url;
+        let endpoint = saved_conversation.endpoint;
+        let api_version = saved_conversation.api_version;
         let completion_provider: Arc<dyn CompletionProvider> = Arc::new(
             OpenAiCompletionProvider::new(
                 api_url
                     .clone()
                     .unwrap_or_else(|| OPEN_AI_API_URL.to_string()),
-                model.full_name().into(),
+                model_name.clone().unwrap(),
+                endpoint,
+                api_version.clone().unwrap(),
                 cx.background_executor().clone(),
             )
             .await,
@@ -1583,10 +1603,15 @@ impl Conversation {
                 completion_count: Default::default(),
                 pending_completions: Default::default(),
                 token_count: None,
-                max_token_count: tiktoken_rs::model::get_context_size(&model.full_name()),
+                max_token_count: tiktoken_rs::model::get_context_size(
+                    model_name.clone().unwrap().as_str(),
+                ),
                 pending_token_count: Task::ready(None),
                 api_url,
                 model,
+                model_name,
+                api_version,
+                endpoint: Some(endpoint),
                 _subscriptions: vec![cx.subscribe(&buffer, Self::handle_buffer_event)],
                 pending_save: Task::ready(Ok(())),
                 path: Some(path),
@@ -1635,7 +1660,7 @@ impl Conversation {
                 })
             })
             .collect::<Vec<_>>();
-        let model = self.model.clone();
+        let model_name = self.model_name.clone();
         self.pending_token_count = cx.spawn(|this, mut cx| {
             async move {
                 cx.background_executor()
@@ -1644,13 +1669,16 @@ impl Conversation {
                 let token_count = cx
                     .background_executor()
                     .spawn(async move {
-                        tiktoken_rs::num_tokens_from_messages(&model.full_name(), &messages)
+                        tiktoken_rs::num_tokens_from_messages(
+                            model_name.unwrap().as_str(),
+                            &messages,
+                        )
                     })
                     .await?;
 
                 this.update(&mut cx, |this, cx| {
                     this.max_token_count =
-                        tiktoken_rs::model::get_context_size(&this.model.full_name());
+                        tiktoken_rs::model::get_context_size(&this.model_name.clone().unwrap());
                     this.token_count = Some(token_count);
                     cx.notify()
                 })?;
@@ -1719,7 +1747,7 @@ impl Conversation {
             }
 
             let request: Box<dyn CompletionRequest> = Box::new(OpenAiRequest {
-                model: self.model.full_name().to_string(),
+                model: self.model_name.clone().unwrap(),
                 messages: self
                     .messages(cx)
                     .filter(|message| matches!(message.status, MessageStatus::Done))
@@ -2002,7 +2030,7 @@ impl Conversation {
                         .into(),
                 }));
             let request: Box<dyn CompletionRequest> = Box::new(OpenAiRequest {
-                model: self.model.full_name().to_string(),
+                model: self.model_name.clone().unwrap(),
                 messages: messages.collect(),
                 stream: true,
                 stop: vec![],
@@ -3651,9 +3679,8 @@ fn report_assistant_event(
     let client = workspace.read(cx).project().read(cx).client();
     let telemetry = client.telemetry();
 
-    let model = AssistantSettings::get_global(cx)
-        .default_open_ai_model
-        .clone();
+    let model_name = AssistantSettings::get_global(cx).model_name.clone();
+    let model = OpenAiModel::convert_enum(model_name);
 
     telemetry.report_assistant_event(conversation_id, assistant_kind, model.full_name())
 }

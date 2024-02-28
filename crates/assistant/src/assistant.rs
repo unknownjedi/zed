@@ -4,7 +4,7 @@ mod codegen;
 mod prompts;
 mod streaming_diff;
 
-use ai::providers::open_ai::Role;
+use ai::{models::ModelEndpoint, providers::open_ai::Role};
 use anyhow::Result;
 pub use assistant_panel::AssistantPanel;
 use assistant_settings::OpenAiModel;
@@ -70,6 +70,9 @@ struct SavedConversation {
     summary: String,
     api_url: Option<String>,
     model: OpenAiModel,
+    model_name: Option<String>,
+    endpoint: ModelEndpoint,
+    api_version: Option<String>,
 }
 
 impl SavedConversation {

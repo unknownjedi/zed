@@ -1,3 +1,6 @@
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 pub enum TruncationDirection {
     Start,
     End,
@@ -13,4 +16,13 @@ pub trait LanguageModel {
         direction: TruncationDirection,
     ) -> anyhow::Result<String>;
     fn capacity(&self) -> anyhow::Result<usize>;
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, JsonSchema)]
+pub enum ModelEndpoint {
+    #[serde(rename = "OPENAI")]
+    #[default]
+    OpenAI,
+    #[serde(rename = "AZURE")]
+    Azure,
 }

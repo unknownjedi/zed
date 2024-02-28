@@ -1,3 +1,4 @@
+use ai::models::ModelEndpoint;
 use anyhow;
 use gpui::Pixels;
 use schemars::JsonSchema;
@@ -12,14 +13,25 @@ pub enum OpenAiModel {
     Four,
     #[serde(rename = "gpt-4-1106-preview")]
     FourTurbo,
+    Custom,
 }
 
 impl OpenAiModel {
+    pub fn convert_enum(model_name: String) -> OpenAiModel {
+        match model_name.as_str() {
+            "gpt-3.5-turbo-0613" => OpenAiModel::ThreePointFiveTurbo,
+            "gpt-4-0613" => OpenAiModel::Four,
+            "gpt-4-1106-preview" => OpenAiModel::FourTurbo,
+            _ => OpenAiModel::Custom,
+        }
+    }
+
     pub fn full_name(&self) -> &'static str {
         match self {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",
             OpenAiModel::Four => "gpt-4-0613",
             OpenAiModel::FourTurbo => "gpt-4-1106-preview",
+            OpenAiModel::Custom => "Custom model",
         }
     }
 
@@ -28,6 +40,7 @@ impl OpenAiModel {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo",
             OpenAiModel::Four => "gpt-4",
             OpenAiModel::FourTurbo => "gpt-4-turbo",
+            OpenAiModel::Custom => "Custom model",
         }
     }
 
@@ -35,7 +48,8 @@ impl OpenAiModel {
         match self {
             OpenAiModel::ThreePointFiveTurbo => OpenAiModel::Four,
             OpenAiModel::Four => OpenAiModel::FourTurbo,
-            OpenAiModel::FourTurbo => OpenAiModel::ThreePointFiveTurbo,
+            OpenAiModel::FourTurbo => OpenAiModel::Custom,
+            OpenAiModel::Custom => OpenAiModel::ThreePointFiveTurbo,
         }
     }
 }
@@ -54,8 +68,10 @@ pub struct AssistantSettings {
     pub dock: AssistantDockPosition,
     pub default_width: Pixels,
     pub default_height: Pixels,
-    pub default_open_ai_model: OpenAiModel,
-    pub openai_api_url: String,
+    pub model_name: String,
+    pub endpoint: ModelEndpoint,
+    pub endpoint_url: String,
+    pub api_version: String,
 }
 
 /// Assistant panel settings
@@ -80,11 +96,19 @@ pub struct AssistantSettingsContent {
     /// The default OpenAI model to use when starting new conversations.
     ///
     /// Default: gpt-4-1106-preview
-    pub default_open_ai_model: Option<OpenAiModel>,
+    pub model_name: Option<String>,
     /// OpenAI API base URL to use when starting new conversations.
     ///
     /// Default: https://api.openai.com/v1
-    pub openai_api_url: Option<String>,
+    pub endpoint_url: Option<String>,
+    /// OpenAI or AZURE.
+    ///
+    /// Default: OPENAI
+    pub endpoint: Option<ModelEndpoint>,
+    /// Api version when endpoint is AZURE
+    ///
+    /// Default: 2023-07-01-preview
+    pub api_version: Option<String>,
 }
 
 impl Settings for AssistantSettings {
