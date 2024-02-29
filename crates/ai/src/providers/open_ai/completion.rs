@@ -145,10 +145,10 @@ pub async fn stream_completion(
     let (tx, rx) = futures::channel::mpsc::unbounded::<Result<OpenAiResponseStreamEvent>>();
 
     let json_data = request.data()?;
-    let (header_key, header_value) = auth_header(endpoint.clone(), api_key);
+    let (auth_header_key, auth_header_value) = auth_header(endpoint.clone(), api_key);
     let mut response = Request::post(completion_url(api_url, model, endpoint, api_version))
         .header("Content-Type", "application/json")
-        .header(header_key, header_value)
+        .header(auth_header_key, auth_header_value)
         .body(json_data)?
         .send_async()
         .await?;
