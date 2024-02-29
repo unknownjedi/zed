@@ -70,8 +70,11 @@ struct SavedConversation {
     summary: String,
     api_url: Option<String>,
     model: OpenAiModel,
+    #[serde(default)]
     model_name: Option<String>,
+    #[serde(default)]
     endpoint: ModelEndpoint,
+    #[serde(default)]
     api_version: Option<String>,
 }
 
