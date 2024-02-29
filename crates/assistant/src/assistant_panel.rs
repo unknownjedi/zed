@@ -117,7 +117,6 @@ impl AssistantPanel {
         workspace: WeakView<Workspace>,
         cx: AsyncWindowContext,
     ) -> Task<Result<View<Self>>> {
-        log::debug!("Assistant settings: panel opened");
         cx.spawn(|mut cx| async move {
             let fs = workspace.update(&mut cx, |workspace, _| workspace.app_state().fs.clone())?;
             let saved_conversations = SavedConversationMetadata::list(fs.clone())
