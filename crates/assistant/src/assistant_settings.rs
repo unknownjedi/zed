@@ -101,11 +101,13 @@ pub struct AssistantSettingsContent {
     ///
     /// Default: https://api.openai.com/v1
     pub endpoint_url: Option<String>,
-    /// OpenAI or AZURE.
+    /// The endpoint kind used for the assistant. Can be `openai` or `azure`.
     ///
-    /// Default: OPENAI
+    /// Default: openai
     pub endpoint: Option<ModelEndpoint>,
-    /// Api version when endpoint is AZURE
+    /// The API version to use.
+    ///
+    /// Only applies when the `endpoint` is set to `azure`.
     ///
     /// Default: 2023-07-01-preview
     pub api_version: Option<String>,

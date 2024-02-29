@@ -115,14 +115,14 @@ fn completion_url(
                 api_url, model, api_version
             )
         }
-        _ => format!("{}/chat/completions", api_url),
+        ModelEndpoint::OpenAi => format!("{}/chat/completions", api_url),
     }
 }
 
 fn auth_header(endpoint: ModelEndpoint, api_key: String) -> (&'static str, String) {
     match endpoint {
         ModelEndpoint::Azure => ("Api-Key", api_key),
-        _ => ("Authorization", format!("Bearer {}", api_key)),
+        ModelEndpoint::OpenAi => ("Authorization", format!("Bearer {}", api_key)),
     }
 }
 

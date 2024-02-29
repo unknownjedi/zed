@@ -23,7 +23,6 @@ pub trait LanguageModel {
 pub enum ModelEndpoint {
     #[serde(rename = "openai")]
     #[default]
-    Openai,
-    #[serde(rename = "azure")]
+    OpenAi,
     Azure,
 }

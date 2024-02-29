@@ -228,7 +228,7 @@
     "default_width": 640,
     // Default height when the assistant is docked to the bottom.
     "default_height": 320,
-    // openai or azure
+    // The endpoint kind used for the assistant. Can be 'openai' or 'azure'.
     "endpoint": "openai",
     // The default OpenAI API endpoint to use when starting new conversations.
     // Provide Azure endpoint URL in case of Azure.
