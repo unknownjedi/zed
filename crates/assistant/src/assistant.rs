@@ -72,7 +72,10 @@ struct SavedConversation {
     model: OpenAiModel,
     #[serde(default)]
     model_name: Option<String>,
-    #[serde(default)]
+    #[serde(
+        deserialize_with = "ModelEndpoint::deserialize",
+        default = "ModelEndpoint::default"
+    )]
     endpoint: ModelEndpoint,
     #[serde(default)]
     api_version: Option<String>,

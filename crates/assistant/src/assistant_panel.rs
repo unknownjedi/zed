@@ -7,7 +7,7 @@ use crate::{
     SavedMessage, Split, ToggleFocus, ToggleIncludeConversation, ToggleRetrieveContext,
 };
 use ai::prompts::repository_context::PromptCodeSnippet;
-use ai::providers::open_ai::OPEN_AI_API_URL;
+use ai::providers::open_ai::{OPEN_AI_API_URL, OPEN_AI_API_VERSION};
 use ai::{
     auth::ProviderCredential,
     completion::{CompletionProvider, CompletionRequest},
@@ -1550,9 +1550,13 @@ impl Conversation {
                 api_url
                     .clone()
                     .unwrap_or_else(|| OPEN_AI_API_URL.to_string()),
-                model_name.clone().unwrap(),
-                endpoint,
-                api_version.clone().unwrap(),
+                model_name
+                    .clone()
+                    .unwrap_or_else(|| model.full_name().to_string()),
+                endpoint.clone(),
+                api_version
+                    .clone()
+                    .unwrap_or_else(|| OPEN_AI_API_VERSION.to_string()),
                 cx.background_executor().clone(),
             )
             .await,

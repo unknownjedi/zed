@@ -1,5 +1,5 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub enum TruncationDirection {
     Start,
@@ -25,4 +25,22 @@ pub enum ModelEndpoint {
     #[default]
     OpenAi,
     Azure,
+}
+
+impl ModelEndpoint {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "openai" => ModelEndpoint::OpenAi,
+            "azure" => ModelEndpoint::Azure,
+            _ => ModelEndpoint::default(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<ModelEndpoint, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(ModelEndpoint::from_str(&s))
+    }
 }
